@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, validator
 
 
@@ -6,6 +7,7 @@ class Product(BaseModel):
     name: str = None
     price: float
     tags: list[str] = []
+    description: Optional[str] = None
 
     @validator("name")
     def name_must_be_capitalized(cls, v):
@@ -16,7 +18,7 @@ class Product(BaseModel):
         return v
 
 
-product = Product(id=1, name="apple", price=0.99)
+product = Product(id=1, name="apple", price=0.99, description="A red fruit")
 print(product.id)
 print(product.name)
 product.tags = ["fruit", "red"]
