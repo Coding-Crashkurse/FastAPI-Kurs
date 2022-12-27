@@ -1,7 +1,7 @@
-from typing import Optional
-from pydantic import BaseModel, validator
-
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, validator
 
 
 class ProductCategory(Enum):

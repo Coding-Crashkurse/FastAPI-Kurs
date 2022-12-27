@@ -7,15 +7,22 @@ app = FastAPI()
 products = []
 
 
-class Product(BaseModel):
-    id: int
+class BaseProduct(BaseModel):
     name: str
     price: float
 
 
-@app.get("/products")
+class Product(BaseProduct):
+    id: int
+
+
+class ResponseProduct(BaseProduct):
+    pass
+
+
+@app.get("/products", response_model=list[ResponseProduct])
 async def get_products():
-    return [p.dict() for p in products]
+    return [ResponseProduct(**p.dict()) for p in products]
 
 
 @app.post("/products")
