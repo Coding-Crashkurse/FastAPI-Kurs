@@ -45,22 +45,25 @@ class UserTable(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
 
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+
 app = FastAPI()
 
 
 @app.post("/register/", status_code=201)
-def create_user(user: UserCreate):
-    with Session(engine) as session:
-        db_user = UserTable.from_orm(user)
-        session.add(db_user)
-        session.commit()
+def create_user(user: UserCreate, session: Session = Depends(get_session)):
+    db_user = UserTable.from_orm(user)
+    session.add(db_user)
+    session.commit()
     return {"id": db_user.id, "message": "User created successfully"}
 
 
 @app.get("/users/")
-def get_all_users():
-    with Session(engine) as session:
-        users = session.query(UserTable).all()
+def get_all_users(session: Session = Depends(get_session)):
+    users = session.query(UserTable).all()
     return users
 
 
