@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 
+import bcrypt
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import validator
@@ -58,6 +59,7 @@ app = FastAPI()
 
 @app.post("/register/", status_code=201)
 def create_user(user: UserCreate, session: Session = Depends(get_session)):
+    user.password = bcrypt.hashpw(user.password.encode("utf-8"), bcrypt.gensalt())
     db_user = UserTable.from_orm(user)
     session.add(db_user)
     session.commit()

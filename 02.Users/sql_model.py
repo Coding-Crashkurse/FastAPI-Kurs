@@ -1,9 +1,11 @@
 import os
 from typing import Optional
+
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException
-from sqlmodel import Field, Session, SQLModel, create_engine
+from fastapi import FastAPI, HTTPException
 from pydantic import validator
+
+from sqlmodel import Field, Session, SQLModel, UniqueConstraint, create_engine
 
 # Set up the database
 engine = create_engine("sqlite:///users.db")
@@ -42,6 +44,7 @@ class UserCreate(UserBase):
 
 class UserTable(UserBase, table=True):
     __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("email"), UniqueConstraint("username"))
     id: Optional[int] = Field(default=None, primary_key=True)
 
 
