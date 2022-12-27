@@ -1,9 +1,9 @@
 import os
 from typing import Optional
 import uvicorn
-from fastapi import Depends, FastAPI
-
+from fastapi import Depends, FastAPI, HTTPException
 from sqlmodel import Field, Session, SQLModel, create_engine
+from pydantic import validator
 
 # Set up the database
 engine = create_engine("sqlite:///users.db")
@@ -27,7 +27,17 @@ class UserBase(SQLModel):
 
 
 class UserCreate(UserBase):
-    pass
+    repeat_password: str
+
+    @validator("repeat_password")
+    def repeat_password_must_match(cls, v, values):
+        print(v)
+        print(values)
+        if v != values["password"]:
+            raise HTTPException(
+                status_code=400, detail="Repeat password does not match password."
+            )
+        return v
 
 
 class UserTable(UserBase, table=True):
