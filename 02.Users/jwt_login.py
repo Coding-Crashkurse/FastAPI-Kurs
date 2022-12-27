@@ -5,8 +5,8 @@ from typing import Optional
 import bcrypt
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt
 from pydantic import validator
 
 from sqlmodel import Field, Session, SQLModel, UniqueConstraint, create_engine
@@ -70,6 +70,8 @@ def get_session():
 
 app = FastAPI()
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
 
 @app.post("/register/", status_code=201)
 def create_user(user: UserCreate, session: Session = Depends(get_session)):
@@ -80,10 +82,23 @@ def create_user(user: UserCreate, session: Session = Depends(get_session)):
     return {"id": db_user.id, "message": "User created successfully"}
 
 
-@app.get("/users/")
-def get_all_users(session: Session = Depends(get_session)):
+@app.get("/users/", dependencies=[Depends(oauth2_scheme)])
+def get_all_users(
+    session: Session = Depends(get_session), token: str = Depends(oauth2_scheme)
+):
+    # print(token)
     users = session.query(UserTable).all()
     return users
+
+
+@app.get("/current_user/")
+def get_all_users(
+    session: Session = Depends(get_session), token: str = Depends(oauth2_scheme)
+):
+    payload = jwt.decode(token, SECRET_KEY)
+    email = payload.get("email")
+    current_user = session.query(UserTable).filter(UserTable.email == email).first()
+    return current_user
 
 
 @app.post("/login/")
@@ -106,7 +121,7 @@ def login(
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 
     jwt_data = {
-        "user": db_user.username,
+        "email": db_user.email,
         "exp": datetime.datetime.utcnow()
         + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     }
