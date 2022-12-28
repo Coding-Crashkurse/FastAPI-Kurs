@@ -1,0 +1,19 @@
+<html>
+  <head>
+    <title>FastAPI CORS Beispiel</title>
+  </head>
+  <body>
+    <div id="response">
+      <button onclick="getResponse()">Get Response</button>
+    </div>
+    <script>
+      function getResponse() {
+        fetch('http://localhost:4000/')
+          .then(response => response.json())
+          .then(data => {
+            document.getElementById('response').innerHTML = data.message;
+          });
+      }
+    </script>
+  </body>
+</html>
