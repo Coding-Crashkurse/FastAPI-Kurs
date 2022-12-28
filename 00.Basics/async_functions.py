@@ -1,6 +1,7 @@
 import time
-import random
 import asyncio
+
+ones = [1] * 10
 
 def blocking_task(n: int) -> int:
     time.sleep(n)
@@ -12,15 +13,13 @@ async def non_blocking_task(n: int) -> int:
 
 def blocking_function():
     results = []
-    for i in range(5):
-        n = random.randint(1, 5)
+    for n in ones:
         results.append(blocking_task(n))
     return results
 
 async def non_blocking_function():
     results = []
-    for i in range(5):
-        n = random.randint(1, 5)
+    for n in ones:
         task = asyncio.create_task(non_blocking_task(n))
         results.append(task)
     return await asyncio.gather(*results)
