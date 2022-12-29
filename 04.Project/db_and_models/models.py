@@ -1,57 +1,62 @@
+from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional
-
-from pydantic import EmailStr
-
-from sqlmodel import Field, Relationship, SQLModel, UniqueConstraint
+from datetime import datetime
 
 
-class CustomerIn(SQLModel):
-    firstname: str
-    lastname: str
-    age: int
-    email: EmailStr
+class UserModel(SQLModel):
     username: str
+    email: str
     password: str
-
-
-class CustomerOut(SQLModel):
-    customer_id: int
-    firstname: str
-    lastname: str
-    age: int
-    email: EmailStr
-    username: str
-
-
-class Customer(SQLModel, table=True):
-    __tablename__ = "customer"
-    customer_id: Optional[int] = Field(default=None, primary_key=True)
-    firstname: str
-    lastname: str
-    age: int
-    email: EmailStr
-    username: str
-    password: str
-
-    purchases: list["Purchase"] = Relationship(back_populates="customer")
-
-
-class Product(SQLModel, table=True):
-    __tablename__ = "product"
-    product_id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-    price: int
 
-    purchases: list["Purchase"] = Relationship(back_populates="product")
+class User(UserModel, table=True):
+    __tablename__ = "users"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    posts: list["Post"] = Relationship(back_populates="author")
+    likes: list["Like"] = Relationship(back_populates="user")
+    following: list["Follower"] = Relationship(back_populates="user")
+    followers: list["Follower"] = Relationship(back_populates="followed_user")
 
 
-class Purchase(SQLModel, table=True):
-    __tablename__ = "purchase"
-    transaction_id: Optional[int] = Field(default=None, primary_key=True)
-    date: str
+class PostModel(SQLModel):
+    created_at: datetime = Field(default_factory=datetime.now)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    content: str
 
-    product_id: Optional[int] = Field(default=None, foreign_key="product.product_id")
-    customer_id: Optional[int] = Field(default=None, foreign_key="customer.customer_id")
 
-    product: Optional[Product] = Relationship(back_populates="purchases")
-    customer: Optional[Customer] = Relationship(back_populates="purchases")
+class Post(PostModel, table=True):
+    __tablename__ = "posts"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    author: Optional[User] = Relationship(back_populates="posts")
+    likes: list["Like"] = Relationship(back_populates="post")
+
+
+class LikeModel(SQLModel):
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    post_id: Optional[int] = Field(default=None, foreign_key="posts.id")
+
+class Like(LikeModel, table=True):
+    __tablename__ = "likes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    user: Optional[User] = Relationship(back_populates="likes")
+    post: Optional[Post] = Relationship(back_populates="likes")
+
+
+class FollowerModel(SQLModel):
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    followed_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+
+
+class Follower(FollowerModel, table=True):
+    __tablename__ = "followers"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    user: Optional[User] = Relationship(back_populates="following")
+    followed_user: Optional[User] = Relationship(back_populates="followers")

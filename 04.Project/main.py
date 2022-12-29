@@ -1,60 +1,111 @@
 import uvicorn
-from db_and_models.models import Customer, CustomerIn, CustomerOut, Product, Purchase
 from db_and_models.session import create_db_and_tables, drop_tables, get_session
+from db_and_models.models import User, Post, Like, Follower, UserModel, PostModel, LikeModel, FollowerModel
 from fastapi import Depends, FastAPI, HTTPException
+
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 app = FastAPI()
 
 
-@app.post("/register/")
-def register(customer: CustomerIn, db: Session = Depends(get_session)):
-    db_customer = Customer(**customer.dict())
-    db.add(db_customer)
+def create_post(post: PostModel, db: Session):
+    user = db.query(User).filter(User.id == post.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    post = Post.from_orm(post)
+    db.add(post)
     db.commit()
-    db.refresh(db_customer)
-    return db_customer
+    return {"success": f"Post mit {post.id} von {post.user_id} erstellt"}
 
 
-@app.post("/products/")
-def create_product(product: Product, db: Session = Depends(get_session)):
-    db.add(product)
+def create_user(usermodel: UserModel, db: Session):
+    existing_user = db.query(User).filter(User.email == usermodel.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already in use")
+
+    # Create the new user
+    user = User.from_orm(usermodel)
+    db.add(user)
     db.commit()
-    db.refresh(product)
-    return product
+    return {"success": f"User mit {user.id} erstellt"}
 
 
-@app.get("/products/{product_id}")
-def read_product(product_id: int, db: Session = Depends(get_session)):
-    product = db.query(Product).filter(Product.product_id == product_id).first()
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product
+# Create function to handle like request
+def create_like(like: LikeModel, db: Session):
+    # Check if user and post exist
+    user = db.query(User).filter(User.id == like.user_id).first()
+    post = db.query(Post).filter(Post.id == like.post_id).first()
+    if not user or not post:
+        raise HTTPException(status_code=404, detail="User or post not found")
 
+    existing_like = db.query(Like).filter(Like.user_id == like.user_id, Like.post_id == like.post_id).first()
+    if existing_like:
+        raise HTTPException(status_code=400, detail="User has already liked this post")
 
-@app.put("/products/{product_id}")
-def update_product(
-    product_id: int, product: Product, db: Session = Depends(get_session)
-):
-    db_product = db.query(Product).filter(Product.product_id == product_id).first()
-    if db_product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    update_data = product.dict(exclude_unset=True)
-    db_product.update(update_data)
-    db.add(db_product)
+    # Create like object and add it to the database
+    like = Like(user_id=like.user_id, post_id=like.post_id)
+    db.add(like)
     db.commit()
-    db.refresh(db_product)
-    return db_product
+    return {"success": "Like added"}
 
 
-@app.delete("/products/{product_id}")
-def delete_product(product_id: int, db: Session = Depends(get_session)):
-    product = db.query(Product).filter(Product.product_id == product_id).first()
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    db.delete(product)
+def create_follower(follower: FollowerModel, db: Session):
+    # Check if user and followed_user exist
+    user = db.query(User).filter(User.id == follower.user_id).first()
+    followed_user = db.query(User).filter(User.id == follower.followed_user_id).first()
+    if not user or not followed_user:
+        raise HTTPException(status_code=404, detail="User or followed user not found")
+
+    existing_follower = db.query(Follower).filter(Follower.user_id == follower.user_id, Follower.followed_user_id == follower.followed_user_id).first()
+    if existing_follower:
+        raise HTTPException(status_code=400, detail="User is already following this user")
+
+    # Create follower object and add it to the database
+    follower = Follower(user_id=follower.user_id, followed_user_id=follower.followed_user_id)
+    db.add(follower)
     db.commit()
-    return {"message": "Successfully deleted product"}
+    return {"success": "Follow added"}
+
+
+def get_following(user_id: int, db: Session):
+    following = db.query(Follower).filter(Follower.user_id == user_id).all()
+    return [follower.followed_user_id for follower in following]
+
+
+@app.post("/users")
+def create_user_endpoint(user: UserModel, db: Session = Depends(get_session)):
+    return create_user(user, db)
+
+
+@app.post("/posts")
+def create_post_endpoint(post: PostModel, db: Session = Depends(get_session)):
+    return create_post(post, db)
+
+
+@app.post("/likes")
+def create_like_endpoint(like: LikeModel, db: Session = Depends(get_session)):
+    return create_like(like, db)
+
+
+@app.delete("/likes/{like_id}")
+def delete_like(like_id: int, db: Session = Depends(get_session)):
+    like = db.query(Like).filter(Like.id == like_id).first()
+    if not like:
+        raise HTTPException(status_code=404, detail="Like not found")
+
+    db.delete(like)
+    db.commit()
+    return {"success": "Like removed"}
+
+@app.post("/followers")
+def create_follower_endpoint(follower: FollowerModel, db: Session = Depends(get_session)):
+    return create_follower(follower, db)
+
+
+@app.get("/following/{user_id}")
+def get_following_endpoint(user_id: int, db: Session = Depends(get_session)):
+    return get_following(user_id, db)
 
 
 @app.on_event("startup")
