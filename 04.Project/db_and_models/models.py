@@ -1,30 +1,37 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from sqlmodel import SQLModel, UniqueConstraint, Field, Relationship
+from pydantic import EmailStr
+from typing import Optional
 
-Base = declarative_base()
 
-
-class Customer(Base):
+class Customer(SQLModel, table=True):
     __tablename__ = "customer"
-    id = Column(Integer, primary_key=True)
-    firstname = Column(String)
-    lastname = Column(String)
-    age = Column(Integer)
-    email = Column(String)
-    username = Column(String)
-    password = Column(String)
+    customer_id: Optional[int] = Field(default=None, primary_key=True)
+    firstname: str
+    lastname: str
+    age: int
+    email: EmailStr
+    username: str
+    password: str
+
+    purchases: list["Purchase"] = Relationship(back_populates="customer")
 
 
-class Product(Base):
+class Product(SQLModel, table=True):
     __tablename__ = "product"
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    price = Column(Integer)
+    product_id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    price: int
+
+    purchases: list["Purchase"] = Relationship(back_populates="product")
 
 
-class Purchase(Base):
+class Purchase(SQLModel, table=True):
     __tablename__ = "purchase"
-    id = Column(Integer, primary_key=True)
-    customer_id = Column(Integer, ForeignKey("customer.id"))
-    product_id = Column(Integer, ForeignKey("product.id"))
-    date = Column(String)
+    transaction_id: Optional[int] = Field(default=None, primary_key=True)
+    date: str
+
+    product_id: Optional[int] = Field(default=None, foreign_key="product.product_id")
+    customer_id: Optional[int] = Field(default=None, foreign_key="customer.customer_id")
+
+    product: Optional[Product] = Relationship(back_populates="purchases")
+    customer: Optional[Customer] = Relationship(back_populates="purchases")
