@@ -1,5 +1,5 @@
-import time
 import asyncio
+import time
 
 ones = [1] * 10
 

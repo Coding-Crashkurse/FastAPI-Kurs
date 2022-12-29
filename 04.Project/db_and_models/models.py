@@ -1,6 +1,26 @@
-from sqlmodel import SQLModel, UniqueConstraint, Field, Relationship
-from pydantic import EmailStr
 from typing import Optional
+
+from pydantic import EmailStr
+
+from sqlmodel import Field, Relationship, SQLModel, UniqueConstraint
+
+
+class CustomerIn(SQLModel):
+    firstname: str
+    lastname: str
+    age: int
+    email: EmailStr
+    username: str
+    password: str
+
+
+class CustomerOut(SQLModel):
+    customer_id: int
+    firstname: str
+    lastname: str
+    age: int
+    email: EmailStr
+    username: str
 
 
 class Customer(SQLModel, table=True):
