@@ -2,6 +2,13 @@ from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional
 from datetime import datetime
 
+class UserLink(SQLModel, table=True):
+    user_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", primary_key=True
+    )
+    follower_id: Optional[int] = Field(
+        default=None, foreign_key="followers.id", primary_key=True
+    )
 
 class UserModel(SQLModel):
     username: str
@@ -16,8 +23,19 @@ class User(UserModel, table=True):
 
     posts: list["Post"] = Relationship(back_populates="author")
     likes: list["Like"] = Relationship(back_populates="user")
-    following: list["Follower"] = Relationship(back_populates="user")
-    followers: list["Follower"] = Relationship(back_populates="followed_user")
+    followers: list["Follower"] = Relationship(back_populates="followed_user", link_model=UserLink)
+
+
+class FollowerModel(SQLModel):
+    user_id: int
+    follower_id: int
+
+class Follower(FollowerModel, table=True):
+    __tablename__ = "followers"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    followed_user: list[User] = Relationship(back_populates="followers", link_model=UserLink)
 
 
 class PostModel(SQLModel):
@@ -48,15 +66,3 @@ class Like(LikeModel, table=True):
     post: Optional[Post] = Relationship(back_populates="likes")
 
 
-class FollowerModel(SQLModel):
-    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    followed_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
-
-
-class Follower(FollowerModel, table=True):
-    __tablename__ = "followers"
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-
-    user: Optional[User] = Relationship(back_populates="following")
-    followed_user: Optional[User] = Relationship(back_populates="followers")
