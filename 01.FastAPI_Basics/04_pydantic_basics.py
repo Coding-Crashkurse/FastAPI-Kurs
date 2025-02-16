@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 
 class ProductCategory(Enum):
@@ -18,7 +18,7 @@ class Product(BaseModel):
     description: Optional[str] = None
     category: ProductCategory
 
-    @validator("name")
+    @field_validator("name", mode="before")
     def name_must_be_capitalized(cls, v):
         if not v:
             raise ValueError("Name is required")
@@ -37,7 +37,7 @@ product = Product(
 print(product.id)
 print(product.name)
 product.tags = ["fruit", "red"]
-product_dict = product.dict()
+product_dict = product.model_dump()
 print(product_dict)
 product2 = Product(**product_dict)
 print(product2)

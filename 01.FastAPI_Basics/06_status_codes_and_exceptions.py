@@ -24,7 +24,7 @@ class ResponseProduct(BaseProduct):
 
 @app.get("/products", response_model=List[ResponseProduct], status_code=200)
 async def get_products():
-    return [ResponseProduct(**p.dict()) for p in products]
+    return [ResponseProduct(**p.model_dump()) for p in products]
 
 
 @app.post("/products", status_code=201)
@@ -37,7 +37,7 @@ async def create_product(product: Product):
 async def get_product(product_id: int):
     for product in products:
         if product.id == product_id:
-            return product.dict()
+            return product.model_dump()
     return HTTPException(status_code=404, detail="Products not found")
 
 
