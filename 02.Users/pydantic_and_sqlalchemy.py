@@ -44,7 +44,7 @@ app = FastAPI()
 @app.post("/register/")
 def create_user(user: UserModel):
     # Create a new user in the database using the provided user data
-    new_user = User(**user.dict())
+    new_user = User(**user.model_dump())
     session.add(new_user)
     session.commit()
     return {"id": new_user.id, "message": "User created successfully"}

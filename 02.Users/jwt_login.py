@@ -1,21 +1,20 @@
 import datetime
 import os
 from typing import Optional
+from contextlib import asynccontextmanager
 
 import bcrypt
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt
-from pydantic import validator
-
-from sqlmodel import Field, Session, SQLModel, UniqueConstraint, create_engine
+from pydantic import field_validator
+from sqlmodel import Field, Session, SQLModel, UniqueConstraint, create_engine, select
 
 SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Set up the database
 engine = create_engine("sqlite:///users.db")
 
 
@@ -25,6 +24,15 @@ def create_db_and_tables():
 
 def remove_db():
     os.remove("users.db")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    try:
+        yield
+    finally:
+        remove_db()
 
 
 class UserBase(SQLModel):
@@ -48,9 +56,9 @@ class User(UserBase):
 class UserCreate(User):
     repeat_password: str
 
-    @validator("repeat_password")
-    def repeat_password_must_match(cls, v, values):
-        if v != values["password"]:
+    @field_validator("repeat_password")
+    def repeat_password_must_match(v, values):
+        if v != values.get("password"):
             raise HTTPException(
                 status_code=400, detail="Repeat password does not match password."
             )
@@ -68,7 +76,7 @@ def get_session():
         yield session
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -76,7 +84,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 @app.post("/register/", status_code=201)
 def create_user(user: UserCreate, session: Session = Depends(get_session)):
     user.password = bcrypt.hashpw(user.password.encode("utf-8"), bcrypt.gensalt())
-    db_user = UserTable.from_orm(user)
+    db_user = UserTable.model_validate(user)
     session.add(db_user)
     session.commit()
     return {"id": db_user.id, "message": "User created successfully"}
@@ -86,8 +94,7 @@ def create_user(user: UserCreate, session: Session = Depends(get_session)):
 def get_all_users(
     session: Session = Depends(get_session), token: str = Depends(oauth2_scheme)
 ):
-    # print(token)
-    users = session.query(UserTable).all()
+    users = session.exec(select(UserTable)).all()
     return users
 
 
@@ -95,9 +102,11 @@ def get_all_users(
 def get_all_users(
     session: Session = Depends(get_session), token: str = Depends(oauth2_scheme)
 ):
-    payload = jwt.decode(token, SECRET_KEY)
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     email = payload.get("email")
-    current_user = session.query(UserTable).filter(UserTable.email == email).first()
+    current_user = session.exec(
+        select(UserTable).where(UserTable.email == email)
+    ).first()
     return current_user
 
 
@@ -106,12 +115,9 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session),
 ):
-    db_user = (
-        session.query(UserTable)
-        .filter(UserTable.username == form_data.username)
-        .first()
-    )
-
+    db_user = session.exec(
+        select(UserTable).where(UserTable.username == form_data.username)
+    ).first()
     if not db_user:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 
@@ -122,21 +128,11 @@ def login(
 
     jwt_data = {
         "email": db_user.email,
-        "exp": datetime.datetime.utcnow()
+        "exp": datetime.datetime.now(datetime.timezone.utc)
         + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     }
     access_token = jwt.encode(jwt_data, key=SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": access_token, "token_type": "bearer"}
-
-
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
-
-
-@app.on_event("shutdown")
-def on_shutdown():
-    remove_db()
 
 
 if __name__ == "__main__":

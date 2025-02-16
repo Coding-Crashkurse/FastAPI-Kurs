@@ -1,13 +1,12 @@
 import os
 from typing import Optional
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import validator
-
+from pydantic import field_validator
 from sqlmodel import Field, Session, SQLModel, UniqueConstraint, create_engine
 
-# Set up the database
 engine = create_engine("sqlite:///users.db")
 
 
@@ -17,6 +16,15 @@ def create_db_and_tables():
 
 def remove_db():
     os.remove("users.db")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    try:
+        yield
+    finally:
+        remove_db()
 
 
 class UserBase(SQLModel):
@@ -31,7 +39,7 @@ class UserBase(SQLModel):
 class UserCreate(UserBase):
     repeat_password: str
 
-    @validator("repeat_password")
+    @field_validator("repeat_password", mode="before")
     def repeat_password_must_match(cls, v, values):
         print(v)
         print(values)
@@ -53,12 +61,12 @@ def get_session():
         yield session
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/register/", status_code=201)
 def create_user(user: UserCreate, session: Session = Depends(get_session)):
-    db_user = UserTable.from_orm(user)
+    db_user = UserTable.model_validate(user)
     session.add(db_user)
     session.commit()
     return {"id": db_user.id, "message": "User created successfully"}
@@ -66,18 +74,8 @@ def create_user(user: UserCreate, session: Session = Depends(get_session)):
 
 @app.get("/users/")
 def get_all_users(session: Session = Depends(get_session)):
-    users = session.query(UserTable).all()
+    users = session.exec(UserTable).all()
     return users
-
-
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
-
-
-@app.on_event("shutdown")
-def on_shutdown():
-    remove_db()
 
 
 if __name__ == "__main__":

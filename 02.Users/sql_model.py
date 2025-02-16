@@ -1,13 +1,12 @@
 import os
 from typing import Optional
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from pydantic import validator
+from pydantic import field_validator
+from sqlmodel import Field, Session, SQLModel, UniqueConstraint, create_engine, select
 
-from sqlmodel import Field, Session, SQLModel, UniqueConstraint, create_engine
-
-# Set up the database
 engine = create_engine("sqlite:///users.db")
 
 
@@ -17,6 +16,15 @@ def create_db_and_tables():
 
 def remove_db():
     os.remove("users.db")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    try:
+        yield
+    finally:
+        remove_db()
 
 
 class UserBase(SQLModel):
@@ -31,11 +39,9 @@ class UserBase(SQLModel):
 class UserCreate(UserBase):
     repeat_password: str
 
-    @validator("repeat_password")
-    def repeat_password_must_match(cls, v, values):
-        print(v)
-        print(values)
-        if v != values["password"]:
+    @field_validator("repeat_password")
+    def repeat_password_must_match(v, values):
+        if v != values.get("password"):
             raise HTTPException(
                 status_code=400, detail="Repeat password does not match password."
             )
@@ -48,33 +54,28 @@ class UserTable(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
 
-app = FastAPI()
+def get_db_session():
+    with Session(engine) as session:
+        yield session
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/register/", status_code=201)
 def create_user(user: UserCreate):
     with Session(engine) as session:
-        db_user = UserTable.from_orm(user)
+        db_user = UserTable.model_validate(user)
         session.add(db_user)
         session.commit()
-    return {"id": db_user.id, "message": "User created successfully"}
+        return {"id": db_user.id, "message": "User created successfully"}
 
 
 @app.get("/users/")
 def get_all_users():
     with Session(engine) as session:
-        users = session.query(UserTable).all()
-    return users
-
-
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
-
-
-@app.on_event("shutdown")
-def on_shutdown():
-    remove_db()
+        users = session.exec(select(UserTable)).all()
+        return users
 
 
 if __name__ == "__main__":
